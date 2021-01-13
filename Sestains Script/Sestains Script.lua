@@ -88,9 +88,8 @@ callbacks.Register( "Draw", "handleUpdates", function()
         update_downloaded = true
 	end
 	
-    if (update_downloaded) then
+    if (update_downloaded) and updateframes < 5.5 then
 		draw.Text(7 + spacing - 650 + fadein, 9, "Update available, please reload the script.")
-        return
     end
 
     if (not version_check_done) then
