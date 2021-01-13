@@ -30,7 +30,7 @@ you a DONKEY dick. Fix the problem yourself. A non-dick would submit the fix bac
 local SCRIPT_FILE_NAME = GetScriptName()
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua"
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/sestain/Aimware-Luas/master/Sestains%20Script/version.txt"
-local VERSION_NUMBER = "1.0"
+local VERSION_NUMBER = "1.1"
 local version_check_done = false
 local update_downloaded = false
 local update_available = false
@@ -118,11 +118,13 @@ local current_angle = 0
 local drawLeft = 0
 local drawRight = 0
 local drawBack = 0
+local in_act_sr = false;
+local next_tick_should_fakelag = true
 
 local rb_ref = gui.Reference("Ragebot")
-local tab = gui.Tab(rb_ref, "Ragebot", "Sestain's Script")
-local gb_r = gui.Groupbox(tab, "Anti-Aim", 15, 15, 250, 400)
-local gb_r2 = gui.Groupbox(tab, "Indicator", 280, 15, 335, 400)
+local tab = gui.Tab(rb_ref, "sestain", "Sestain's Script")
+local gb_r = gui.Groupbox(tab, "Anti-Aim & Other", 15, 15, 250, 400)
+local gb_r2 = gui.Groupbox(tab, "Indicators", 280, 15, 335, 400)
 
 local desync_indicator = gui.Checkbox(gb_r2, "desync_indicator", "Desync Indicator", false)
 local desync_position_z = gui.Slider(gb_r2, "desync_z", "Desync Indicator's Z Position", y, 0, h)
@@ -133,12 +135,13 @@ local manual_position_z = gui.Slider(gb_r2, "manual_z", "Manual AA Indicator's Z
 local manual_bgcp = gui.ColorPicker(gb_r2, "manual_bgclr", "Manual AA Indicator's Background Color", 0,0,0,128)
 local manual_icp = gui.ColorPicker(gb_r2, "manual_iclr", "Manual AA Indicator's Indicator Color", 235,235,235,235)
 
+local safe_revolver = gui.Checkbox(gb_r, "safe_revolver", "Safe Revolver", false)
+local antionshot = gui.Checkbox(gb_r, "antionshot", "Anti Onshot", false)
 local invert_key = gui.Keybox(gb_r, "ikey", "Invert Key", 0)
 local legit_aa_key = gui.Keybox(gb_r, "lkey", "Legit AA Key", 0)
-
 local left_key = gui.Keybox(gb_r, "left", "Manual AA to Left", 0)
 local back_key = gui.Keybox(gb_r, "back", "Manual AA to Backwards", 0)
-local right_key = gui.Keybox(gb_r,"right","Manual AA to Right",0)
+local right_key = gui.Keybox(gb_r,"right","Manual AA to Right", 0)
 local rotation_angle = gui.Slider(gb_r, "rotationangle", "Rotation Offset", 0, -58, 58)
 local lby_angle = gui.Slider(gb_r, "lbyangle", "LBY Offset", 0, -180, 180)
 
@@ -146,6 +149,8 @@ desync_indicator:SetDescription("Shows which side your anti-aim desync is with a
 desync_position_z:SetDescription("Changes desync indicator's height")
 manual_indicator:SetDescription("Shows where manual anti-aim is set with an arrow indicator")
 manual_position_z:SetDescription("Changes manual aa indicator's height")
+safe_revolver:SetDescription("R8 Revolver shouldn't shoot ground anymore")
+antionshot:SetDescription("This is useful in mm (Desyncs while shooting)")
 invert_key:SetDescription("Key used to invert anti-aim")
 legit_aa_key:SetDescription("Sets Anti-Aim 0° (Forward)")
 left_key:SetDescription("Sets Anti-Aim 90° (Left)")
@@ -154,7 +159,50 @@ right_key:SetDescription("Sets Anti-Aim -90° (Right)")
 rotation_angle:SetDescription("Sets Rotation offset")
 lby_angle:SetDescription("Sets LBY offset")
 
-callbacks.Register( "Draw", "Antiaim", function() 
+callbacks.Register( "weapon_fire", "fire", function()
+	if not entities.GetLocalPlayer() then return end
+	if not entities.GetLocalPlayer():IsAlive() then return end
+	
+	local ent = Entity.GetEntityFromUserID(Event.GetInt("userid"))
+    if (ent ~= Entity.GetLocalPlayer()) then return end
+    next_tick_should_fakelag = false
+end)
+
+callbacks.Register( "CreateMove", "cM", function()
+	if not entities.GetLocalPlayer() then return end
+	if not entities.GetLocalPlayer():IsAlive() then return end
+
+	if gui.GetValue("rbot.sestain.antionshot") == true then
+		if gui.GetValue("rbot.master") == true then
+    		gui.SetValue("misc.fakelag.enable", true)
+    		if not (next_tick_should_fakelag) then
+    		    gui.SetValue("misc.fakelag.enable", false)
+    		    next_tick_should_fakelag = true
+			end
+		end
+	end
+end)
+
+callbacks.Register( "CreateMove", "create_move", function()
+	if not entities.GetLocalPlayer() then return end
+	if not entities.GetLocalPlayer():IsAlive() then return end
+
+	local WeaponID = entities.GetLocalPlayer():GetWeaponID();
+
+	if gui.GetValue("rbot.sestain.safe_revolver") == true then
+		if gui.GetValue("rbot.master") == true then
+    		if (WeaponType == 0 and WeaponID == 36) then
+    		    in_act_sr = Math.round(1 / Globals.Frametime()) < 65 == true or false
+    		    gui.SetValue("misc.fakelag.enable", Math.round(1 / Globals.Frametime()) < 65 == false or true)
+    		else
+    		    in_act_sr = false
+    		    gui.SetValue("misc.fakelag.enable", true)
+			end
+		end
+	end
+end)
+
+callbacks.Register( "Draw", "Antiaim", function()
 	if gui.GetValue("rbot.master") == true then
 		if invert_key:GetValue() ~= 0 then
 			if input.IsButtonPressed(invert_key:GetValue()) then
@@ -217,12 +265,11 @@ end)
 
 callbacks.Register( "Draw", "DesyncIndicator", function()
 	if not entities.GetLocalPlayer() then return end
-	if not entities.GetLocalPlayer():IsAlive() then return end
 	
 	local desync_bgr, desync_bgg, desync_bgb, desync_bga = desync_bgcp:GetValue()
 	local desync_ir, desync_ig, desync_ib, desync_ia = desync_icp:GetValue()
 	
-	if gui.GetValue("rbot.Ragebot.desync_indicator") == true then
+	if gui.GetValue("rbot.sestain.desync_indicator") == true then
 		if gui.GetValue("rbot.master") == true then
 			if current_angle == 0 then 
 				draw.Color(desync_ir, desync_ig, desync_ib, desync_ia)
@@ -241,12 +288,11 @@ end)
 
 callbacks.Register( "Draw", "ManualIndicator", function()
 	if not entities.GetLocalPlayer() then return end
-	if not entities.GetLocalPlayer():IsAlive() then return end
 	
 	local manual_bgr, manual_bgg, manual_bgb, manual_bga = manual_bgcp:GetValue()
 	local manual_ir, manual_ig, manual_ib, manual_ia = manual_icp:GetValue()
 	
-	if gui.GetValue("rbot.Ragebot.manual_indicator") == true then
+	if gui.GetValue("rbot.sestain.manual_indicator") == true then
 		if gui.GetValue("rbot.master") == true then
 			if drawLeft == 0 then
 				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
