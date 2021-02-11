@@ -30,7 +30,7 @@ you a DONKEY dick. Fix the problem yourself. A non-dick would submit the fix bac
 local SCRIPT_FILE_NAME = GetScriptName()
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua"
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/sestain/Aimware-Luas/master/Sestains%20Script/version.txt"
-local VERSION_NUMBER = "1.1"
+local VERSION_NUMBER = "1.2"
 local version_check_done = false
 local update_downloaded = false
 local update_available = false
@@ -118,45 +118,43 @@ local drawLeft = 0
 local drawRight = 0
 local drawBack = 0
 local in_act_sr = false;
-local next_tick_should_fakelag = true
+local next_tick_should_fakelag = true;
+
+local old_lby_offset = gui.GetValue("rbot.antiaim.base.lby")
+local old_rotation_offset = gui.GetValue("rbot.antiaim.base.rotation")
 
 local rb_ref = gui.Reference("Ragebot")
 local tab = gui.Tab(rb_ref, "sestain", "Sestain's Script")
-local gb_r = gui.Groupbox(tab, "Anti-Aim & Other", 15, 15, 250, 400)
-local gb_r2 = gui.Groupbox(tab, "Indicators", 280, 15, 335, 400)
+local gb_r = gui.Groupbox(tab, "Anti-Aim", 15, 15, 250, 400)
+local gb_r2 = gui.Groupbox(tab, "Indicators & Other", 280, 15, 335, 400)
 
+local safe_revolver = gui.Checkbox(gb_r2, "safe_revolver", "Safe Revolver", false)
+local antionshot = gui.Checkbox(gb_r2, "antionshot", "Anti Onshot", false)
 local desync_indicator = gui.Checkbox(gb_r2, "desync_indicator", "Desync Indicator", false)
 local desync_position_z = gui.Slider(gb_r2, "desync_z", "Desync Indicator's Z Position", y, 0, h)
-local desync_bgcp = gui.ColorPicker(gb_r2, "desync_bgclr", "Desync Indicator's Background Color", 0,0,0,128)
-local desync_icp = gui.ColorPicker(gb_r2, "desync_iclr", "Desync Indicator's Indicator Color", 0,135,206,235)
+local desync_bgcp = gui.ColorPicker(desync_indicator, "desync_bgclr", "Desync Indicator's Background Color", 0,0,0,128)
+local desync_icp = gui.ColorPicker(desync_indicator, "desync_iclr", "Desync Indicator's Indicator Color", 0,135,206,235)
 local manual_indicator = gui.Checkbox(gb_r2, "manual_indicator", "Manual AA Indicator", false)
 local manual_position_z = gui.Slider(gb_r2, "manual_z", "Manual AA Indicator's Z Position", h/1.25, 0, h)
-local manual_bgcp = gui.ColorPicker(gb_r2, "manual_bgclr", "Manual AA Indicator's Background Color", 0,0,0,128)
-local manual_icp = gui.ColorPicker(gb_r2, "manual_iclr", "Manual AA Indicator's Indicator Color", 235,235,235,235)
+local manual_bgcp = gui.ColorPicker(manual_indicator, "manual_bgclr", "Manual AA Indicator's Background Color", 0,0,0,128)
+local manual_icp = gui.ColorPicker(manual_indicator, "manual_iclr", "Manual AA Indicator's Indicator Color", 235,235,235,235)
 
-local safe_revolver = gui.Checkbox(gb_r, "safe_revolver", "Safe Revolver", false)
-local antionshot = gui.Checkbox(gb_r, "antionshot", "Anti Onshot", false)
 local invert_key = gui.Keybox(gb_r, "ikey", "Invert Key", 0)
 local legit_aa_key = gui.Keybox(gb_r, "lkey", "Legit AA Key", 0)
-local left_key = gui.Keybox(gb_r, "left", "Manual AA to Left", 0)
-local back_key = gui.Keybox(gb_r, "back", "Manual AA to Backwards", 0)
-local right_key = gui.Keybox(gb_r,"right","Manual AA to Right", 0)
-local rotation_angle = gui.Slider(gb_r, "rotationangle", "Rotation Offset", 0, -58, 58)
-local lby_angle = gui.Slider(gb_r, "lbyangle", "LBY Offset", 0, -180, 180)
+local left_key = gui.Keybox(gb_r, "left", "Manual AA to Left", 37)
+local back_key = gui.Keybox(gb_r, "back", "Manual AA to Backwards", 40)
+local right_key = gui.Keybox(gb_r,"right","Manual AA to Right", 39)
+local rotation_angle = gui.Slider(gb_r, "rotationangle", "Rotation Offset", old_rotation_offset, -58, 58)
+local lby_angle = gui.Slider(gb_r, "lbyangle", "LBY Offset", old_lby_offset, -180, 180)
 
-desync_indicator:SetDescription("Shows which side your anti-aim desync is with an arrow indicator")
-desync_position_z:SetDescription("Changes desync indicator's height")
-manual_indicator:SetDescription("Shows where manual anti-aim is set with an arrow indicator")
-manual_position_z:SetDescription("Changes manual aa indicator's height")
+desync_indicator:SetDescription("Shows which side your anti-aim desync is with an arrow")
+desync_position_z:SetDescription("Changes desync Indicator's height")
+manual_indicator:SetDescription("Shows where Manual Anti-Aim is set with an arrow")
+manual_position_z:SetDescription("Changes Manual AA Indicator's height")
 safe_revolver:SetDescription("R8 Revolver shouldn't shoot ground anymore")
-antionshot:SetDescription("This is useful in mm (Desyncs while shooting)")
-invert_key:SetDescription("Key used to invert anti-aim")
-legit_aa_key:SetDescription("Sets Anti-Aim 0° (Forward)")
-left_key:SetDescription("Sets Anti-Aim 90° (Left)")
-back_key:SetDescription("Sets Anti-Aim 180° (Backwards)")
-right_key:SetDescription("Sets Anti-Aim -90° (Right)")
-rotation_angle:SetDescription("Sets Rotation offset")
-lby_angle:SetDescription("Sets LBY offset")
+antionshot:SetDescription("This is useful in MM (Desyncs while shooting)")
+invert_key:SetDescription("Key used to invert Anti-Aim")
+
 
 callbacks.Register( "weapon_fire", "fire", function()
 	if not entities.GetLocalPlayer() then return end
@@ -320,25 +318,5 @@ callbacks.Register( "Draw", "ManualIndicator", function()
 	end
 end)
 
-callbacks.Register( "Draw", "LegitAA", function()
-	if not entities.GetLocalPlayer() then return end
-	if not entities.GetLocalPlayer():IsAlive() then return end
-
-	if legit_aa_key:GetValue() ~= 0 then
-		if gui.GetValue("rbot.master") == true then
-			if input.IsButtonDown( legit_aa_key:GetValue() ) then
-				gui.SetValue( "rbot.antiaim.base", 0 )
-				gui.SetValue( "rbot.antiaim.advanced.pitch", 0 )
-			else
-				gui.SetValue( "rbot.antiaim.base", 180 )
-				gui.SetValue( "rbot.antiaim.advanced.pitch", 1 )
-				if drawLeft == 1 then
-					gui.SetValue("rbot.antiaim.base", 90)
-				end
-				if drawRight == 1 then
-					gui.SetValue("rbot.antiaim.base", -90)
-				end
-			end
-		end
-	end
-end)
+callbacks.Register("Draw", function() desync_position_z:SetInvisible(desync_indicator:GetValue() == false) end)
+callbacks.Register("Draw", function() manual_position_z:SetInvisible(manual_indicator:GetValue() == false) end)
