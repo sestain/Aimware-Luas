@@ -30,7 +30,7 @@ you a DONKEY dick. Fix the problem yourself. A non-dick would submit the fix bac
 local SCRIPT_FILE_NAME = GetScriptName()
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua"
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/sestain/Aimware-Luas/master/Sestains%20Script/version.txt"
-local VERSION_NUMBER = "1.4"
+local VERSION_NUMBER = "1.41"
 local version_check_done = false
 local update_downloaded = false
 local update_available = false
@@ -162,6 +162,9 @@ manual_position_z:SetDescription("Changes Manual AA Indicator's height")
 safe_revolver:SetDescription("R8 Revolver shouldn't shoot ground anymore")
 antionshot:SetDescription("This is useful in MM (Desyncs while shooting)")
 invert_key:SetDescription("Key used to invert Anti-Aim")
+
+desync_indicator_rgb:SetInvisible(true)
+manual_indicator_rgb:SetInvisible(true)
 
 callbacks.Register( "FireGameEvent", "fire", function(Event)
 	if gui.GetValue("rbot.master") == true then
