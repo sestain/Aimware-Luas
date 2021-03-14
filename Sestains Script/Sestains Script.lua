@@ -30,7 +30,7 @@ you a DONKEY dick. Fix the problem yourself. A non-dick would submit the fix bac
 local SCRIPT_FILE_NAME = GetScriptName()
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua"
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/sestain/Aimware-Luas/master/Sestains%20Script/version.txt"
-local VERSION_NUMBER = "1.3"
+local VERSION_NUMBER = "1.4"
 local version_check_done = false
 local update_downloaded = false
 local update_available = false
@@ -117,7 +117,11 @@ local current_angle = 0
 local drawLeft = 0
 local drawRight = 0
 local drawBack = 0
-local in_act_sr = false;
+local frame_rate = 0.0
+local get_abs_fps = function()
+	frame_rate = 0.9 * frame_rate + (1.0 - 0.9) * globals.AbsoluteFrameTime()
+	return math.floor((1.0 / frame_rate) + 0.5)
+end
 local next_tick_should_fakelag = true;
 
 local old_lby_offset = gui.GetValue("rbot.antiaim.base.lby")
@@ -130,6 +134,7 @@ local gb_r2 = gui.Groupbox(tab, "Indicators & Other", 280, 15, 335, 400)
 
 local safe_revolver = gui.Checkbox(gb_r2, "safe_revolver", "Safe Revolver", false)
 local antionshot = gui.Checkbox(gb_r2, "antionshot", "Anti Onshot", false)
+local disablefl = gui.Checkbox(gb_r2, "disablefl", "Disable Fakelag on DT/HS", false)
 local desync_indicator = gui.Checkbox(gb_r2, "desync_indicator", "Desync Indicator", 1)
 local desync_indicator_rgb = gui.Checkbox(desync_indicator, "rgb", "rgb", 0)
 local desync_position_z = gui.Slider(gb_r2, "desync_z", "Desync Indicator's Z Position", y, 0, h)
@@ -158,27 +163,28 @@ safe_revolver:SetDescription("R8 Revolver shouldn't shoot ground anymore")
 antionshot:SetDescription("This is useful in MM (Desyncs while shooting)")
 invert_key:SetDescription("Key used to invert Anti-Aim")
 
-desync_indicator_rgb:SetInvisible(true)
-manual_indicator_rgb:SetInvisible(true)
-
-callbacks.Register( "weapon_fire", "fire", function()
-	if gui.GetValue("rbot.sestain.enabled") == true then
-		if not entities.GetLocalPlayer() then return end
-		if not entities.GetLocalPlayer():IsAlive() then return end
-		
-		local ent = Entity.GetEntityFromUserID(Event.GetInt("userid"))
-    	if (ent ~= Entity.GetLocalPlayer()) then return end
-    	next_tick_should_fakelag = false
+callbacks.Register( "FireGameEvent", "fire", function(Event)
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue( "rbot.sestain.antionshot" ) == true then
+				if not entities.GetLocalPlayer() then return end
+				if not entities.GetLocalPlayer():IsAlive() then return end
+			
+				local ent = entities.GetByUserID(Event:GetInt('userid'))
+    			if (ent ~= entities.GetLocalPlayer()) then return end
+    			next_tick_should_fakelag = false
+			end
+		end
 	end
 end)
 
-callbacks.Register( "CreateMove", "cM", function()
-	if gui.GetValue("rbot.sestain.enabled") == true then
-		if not entities.GetLocalPlayer() then return end
-		if not entities.GetLocalPlayer():IsAlive() then return end
+callbacks.Register( "Draw", "antionshot", function()
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue("rbot.sestain.antionshot") == true then
+				if not entities.GetLocalPlayer() then return end
+				if not entities.GetLocalPlayer():IsAlive() then return end
 
-		if gui.GetValue("rbot.sestain.antionshot") == true then
-			if gui.GetValue("rbot.master") == true then
     			gui.SetValue("misc.fakelag.enable", true)
     			if not (next_tick_should_fakelag) then
     			    gui.SetValue("misc.fakelag.enable", false)
@@ -189,141 +195,154 @@ callbacks.Register( "CreateMove", "cM", function()
 	end
 end)
 
-callbacks.Register( "CreateMove", "create_move", function()
-	if gui.GetValue("rbot.sestain.enabled") == true then
-		if not entities.GetLocalPlayer() then return end
-		if not entities.GetLocalPlayer():IsAlive() then return end
+callbacks.Register( "Draw", "SafeRevolver", function()
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue("rbot.sestain.safe_revolver") == true then
+				if not entities.GetLocalPlayer() then return end
+				if not entities.GetLocalPlayer():IsAlive() then return end
+	
+				local WeaponID = entities.GetLocalPlayer():GetWeaponID();
+				local WeaponType = entities.GetLocalPlayer():GetWeaponType();
 
-		local WeaponID = entities.GetLocalPlayer():GetWeaponID();
+				if ((get_abs_fps()) < 60) then
+					gui.SetValue( "rbot.aim.automation.revolver", false )
+				else
+					gui.SetValue( "rbot.aim.automation.revolver", true )
+				end
 
-		if gui.GetValue("rbot.sestain.safe_revolver") == true then
-			if gui.GetValue("rbot.master") == true then
     			if (WeaponType == 0 and WeaponID == 36) then
-    			    in_act_sr = Math.round(1 / Globals.Frametime()) < 65 == true or false
-    			    gui.SetValue("misc.fakelag.enable", Math.round(1 / Globals.Frametime()) < 65 == false or true)
+    			    gui.SetValue("misc.fakelag.enable", math.floor(1 / Globals.Frametime()) < 65 == false or true)
     			else
-    			    in_act_sr = false
     			    gui.SetValue("misc.fakelag.enable", true)
 				end
+			else
+				gui.SetValue( "rbot.aim.automation.revolver", true )
 			end
 		end
 	end
 end)
 
 callbacks.Register( "Draw", "Antiaim", function()
-	if gui.GetValue("rbot.sestain.enabled") == true then
-		if invert_key:GetValue() ~= 0 then
-			if input.IsButtonPressed(invert_key:GetValue()) then
-				current_angle = current_angle == 0 and 1 or 0;
-			end
-		end
-
-		if left_key:GetValue() ~= 0 then
-			if input.IsButtonPressed(left_key:GetValue()) then
-				drawLeft = drawLeft == 0 and 1 or 0;
-				drawBack = 0
-				drawRight = 0
-				if drawLeft == 0 then
-					gui.SetValue("rbot.antiaim.base", 180)
-				elseif drawLeft == 1 then
-					gui.SetValue("rbot.antiaim.base", 90)
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if invert_key:GetValue() ~= 0 then
+				if input.IsButtonPressed(invert_key:GetValue()) then
+					current_angle = current_angle == 0 and 1 or 0;
 				end
 			end
-		end
 
-		if back_key:GetValue() ~= 0 then
-			if input.IsButtonPressed(back_key:GetValue()) then
-				drawLeft = 0
-				drawBack = drawBack == 0 and 1 or 0;
-				drawRight = 0
-				if drawBack == 0 then
-					gui.SetValue("rbot.antiaim.base", 180)
-				elseif drawBack == 1 then
-					gui.SetValue("rbot.antiaim.base", 180)
+			if left_key:GetValue() ~= 0 then
+				if input.IsButtonPressed(left_key:GetValue()) then
+					drawLeft = drawLeft == 0 and 1 or 0;
+					drawBack = 0
+					drawRight = 0
+					if drawLeft == 0 then
+						gui.SetValue("rbot.antiaim.base", 180)
+					elseif drawLeft == 1 then
+						gui.SetValue("rbot.antiaim.base", 90)
+					end
 				end
 			end
-		end
 
-		if right_key:GetValue() ~= 0 then
-			if input.IsButtonPressed(right_key:GetValue()) then
-				drawLeft = 0
-				drawBack = 0
-				drawRight = drawRight == 0 and 1 or 0;
-				if drawRight == 0 then
-					gui.SetValue("rbot.antiaim.base", 180)
-				elseif drawRight == 1 then
-					gui.SetValue("rbot.antiaim.base", -90)
+			if back_key:GetValue() ~= 0 then
+				if input.IsButtonPressed(back_key:GetValue()) then
+					drawLeft = 0
+					drawBack = drawBack == 0 and 1 or 0;
+					drawRight = 0
+					if drawBack == 0 then
+						gui.SetValue("rbot.antiaim.base", 180)
+					elseif drawBack == 1 then
+						gui.SetValue("rbot.antiaim.base", 180)
+					end
 				end
 			end
-		end
 
-		if current_angle ~= 2 then
-			local lby = current_angle == 0 and -lby_angle:GetValue() or lby_angle:GetValue()
-			local rotation = current_angle == 0 and -rotation_angle:GetValue() or rotation_angle:GetValue()
-			lby = 0 and -lby or lby
-			rotation = 0 and -rotation or rotation
-			gui.SetValue("rbot.antiaim.base.lby", lby)
-			gui.SetValue("rbot.antiaim.base.rotation", rotation)
-		else
-			gui.SetValue("rbot.antiaim.base.lby", -lby)
-			gui.SetValue("rbot.antiaim.base.rotation", -rotation)
+			if right_key:GetValue() ~= 0 then
+				if input.IsButtonPressed(right_key:GetValue()) then
+					drawLeft = 0
+					drawBack = 0
+					drawRight = drawRight == 0 and 1 or 0;
+					if drawRight == 0 then
+						gui.SetValue("rbot.antiaim.base", 180)
+					elseif drawRight == 1 then
+						gui.SetValue("rbot.antiaim.base", -90)
+					end
+				end
+			end
+
+			if current_angle ~= 2 then
+				local lby = current_angle == 0 and -lby_angle:GetValue() or lby_angle:GetValue()
+				local rotation = current_angle == 0 and -rotation_angle:GetValue() or rotation_angle:GetValue()
+				lby = 0 and -lby or lby
+				rotation = 0 and -rotation or rotation
+				gui.SetValue("rbot.antiaim.base.lby", lby)
+				gui.SetValue("rbot.antiaim.base.rotation", rotation)
+			else
+				gui.SetValue("rbot.antiaim.base.lby", -lby)
+				gui.SetValue("rbot.antiaim.base.rotation", -rotation)
+			end
 		end
 	end
 end)
 
 callbacks.Register( "Draw", "DesyncIndicator", function()
-	if not entities.GetLocalPlayer() then return end
-	
-	local desync_bgr, desync_bgg, desync_bgb, desync_bga = desync_bgcp:GetValue()
-	local desync_ir, desync_ig, desync_ib, desync_ia = desync_icp:GetValue()
-	
-	if gui.GetValue("rbot.sestain.desync_indicator") == true then
-		if gui.GetValue("rbot.master") == true then
-			if current_angle == 0 then 
-				draw.Color(desync_ir, desync_ig, desync_ib, desync_ia)
-				draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10)
-				draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga)
-				draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue())
-			elseif current_angle == 1 then 
-				draw.Color(desync_ir, desync_ig, desync_ib, desync_ia)
-				draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue())
-				draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga)
-				draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10)
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue("rbot.sestain.desync_indicator") == true then
+				if not entities.GetLocalPlayer() then return end
+				local desync_bgr, desync_bgg, desync_bgb, desync_bga = desync_bgcp:GetValue()
+				local desync_ir, desync_ig, desync_ib, desync_ia = desync_icp:GetValue()
+
+				if gui.GetValue("rbot.master") == true then
+					if current_angle == 0 then 
+						draw.Color(desync_ir, desync_ig, desync_ib, desync_ia)
+						draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10)
+						draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga)
+						draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue())
+					elseif current_angle == 1 then 
+						draw.Color(desync_ir, desync_ig, desync_ib, desync_ia)
+						draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue())
+						draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga)
+						draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10)
+					end
+				end
 			end
 		end
 	end
 end)
 
 callbacks.Register( "Draw", "ManualIndicator", function()
-	if not entities.GetLocalPlayer() then return end
-	
-	local manual_bgr, manual_bgg, manual_bgb, manual_bga = manual_bgcp:GetValue()
-	local manual_ir, manual_ig, manual_ib, manual_ia = manual_icp:GetValue()
-	
-	if gui.GetValue("rbot.sestain.manual_indicator") == true then
-		if gui.GetValue("rbot.master") == true then
-			if drawLeft == 0 then
-				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
-				draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10)
-			elseif drawLeft == 1 then
-				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
-				draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10)
-			end
-		
-			if drawBack == 0 then
-				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
-				draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70)
-			elseif drawBack == 1 then
-				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
-				draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70)
-			end
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue("rbot.sestain.manual_indicator") == true then
+				if not entities.GetLocalPlayer() then return end
+				local manual_bgr, manual_bgg, manual_bgb, manual_bga = manual_bgcp:GetValue()
+				local manual_ir, manual_ig, manual_ib, manual_ia = manual_icp:GetValue()
+
+				if drawLeft == 0 then
+					draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
+					draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10)
+				elseif drawLeft == 1 then
+					draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
+					draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10)
+				end
 			
-			if drawRight == 0 then
-				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
-				draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10)
-			elseif drawRight == 1 then
-				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
-				draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10)
+				if drawBack == 0 then
+					draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
+					draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70)
+				elseif drawBack == 1 then
+					draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
+					draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70)
+				end
+			
+				if drawRight == 0 then
+					draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga)
+					draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10)
+				elseif drawRight == 1 then
+					draw.Color(manual_ir, manual_ig, manual_ib, manual_ia)
+					draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10)
+				end
 			end
 		end
 	end
@@ -339,34 +358,114 @@ local saved_values = {
 }
 
 callbacks.Register( "CreateMove", function(cmd)
-	if gui.GetValue("rbot.sestain.enabled") == true then
-		if not legitaa:GetValue() or bit.band(cmd.buttons, bit.lshift(1, 5)) == 0 then
-			if saved then
-				for i, v in next, saved_values do
-					gui.SetValue(i, v)
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue("rbot.sestain.legitaa") == true then
+				if not legitaa:GetValue() or bit.band(cmd.buttons, bit.lshift(1, 5)) == 0 then
+					if saved then
+						for i, v in next, saved_values do
+							gui.SetValue(i, v)
+						end
+						saved = false
+					end
+				return end
+				
+				if not cmd.sendpacket then return end
+				
+				if not saved then
+					for i, v in next, saved_values do
+						saved_values[i] = gui.GetValue(i)
+					end
+					saved = true
 				end
-				saved = false
+			
+    			gui.SetValue("rbot.antiaim.condition.use", 0)
+    			gui.SetValue("rbot.antiaim.advanced.pitch", 0)
+    			gui.SetValue("rbot.antiaim.advanced.autodir.edges", 0)
+    			gui.SetValue("rbot.antiaim.advanced.autodir.targets", 0)
+    			gui.SetValue("rbot.antiaim.base", [[0 "Desync"]])
 			end
-		return end
-	
-		if not cmd.sendpacket then return end
-	
-		if not saved then
-			for i, v in next, saved_values do
-				saved_values[i] = gui.GetValue(i)
-			end
-			saved = true
 		end
-
-    	gui.SetValue("rbot.antiaim.condition.use", 0)
-    	gui.SetValue("rbot.antiaim.advanced.pitch", 0)
-    	gui.SetValue("rbot.antiaim.advanced.autodir.edges", 0)
-    	gui.SetValue("rbot.antiaim.advanced.autodir.targets", 0)
-    	gui.SetValue("rbot.antiaim.base", [[0 "Desync"]])
 	end
 end)
 
+local saved2 = false
+local saved_values2 = {
+	["misc.fakelag.enable"] = gui.GetValue("misc.fakelag.enable")
+}
 
+callbacks.Register( "Draw", "Fakelag", function()
+	if gui.GetValue("rbot.master") == true then
+		if gui.GetValue("rbot.sestain.enabled") == true then
+			if gui.GetValue( "rbot.sestain.disablefl" ) == true then
+				if gui.GetValue("rbot.master") and (wid == 1 or wid == 64) and gui.GetValue("rbot.accuracy.weapon.hpistol.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 2 or wid == 3 or wid == 4 or wid == 30 or wid == 32 or wid == 36 or wid == 61 or wid == 63) and gui.GetValue("rbot.accuracy.weapon.pistol.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 7 or wid == 8 or wid == 10 or wid == 13 or wid == 16 or wid == 39 or wid == 60) and gui.GetValue("rbot.accuracy.weapon.rifle.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 11 or wid == 38) and gui.GetValue("rbot.accuracy.weapon.asniper.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 17 or wid == 19 or wid == 23 or wid == 24 or wid == 26 or wid == 33 or wid == 34) and gui.GetValue("rbot.accuracy.weapon.smg.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 14 or wid == 28) and gui.GetValue("rbot.accuracy.weapon.lmg.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				elseif gui.GetValue("rbot.master") and (wid == 25 or wid == 27 or wid == 29 or wid == 35) and gui.GetValue("rbot.accuracy.weapon.shotgun.doublefire") ~= 0 or gui.GetValue("rbot.antiaim.condition.shiftonshot") then
+					if not saved2 then
+						for i, v in next, saved_values2 do
+							saved_values2[i] = gui.GetValue(i)
+						end
+						saved2 = true
+					end
+					gui.SetValue("misc.fakelag.enable", false)
+				else
+					if saved2 then
+						for i, v in next, saved_values2 do
+							gui.SetValue(i, v)
+						end
+						saved2 = false
+					end
+				end
+			end
+		end
+	end
+end)
 
 local function gui_set_invisible()
     local desync_indicator = desync_indicator:GetValue()
