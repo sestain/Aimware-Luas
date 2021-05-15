@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.43";
+local VERSION_NUMBER = "1.431";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -507,7 +507,6 @@ end
 local function gui_set_disabled()
 	if gui.GetValue("rbot.sestain.enabled") == false then
 		safe_revolver:SetDisabled(true);
-		antionshot:SetDisabled(true);
 		desync_indicator:SetDisabled(true);
 		desync_indicator_rgb:SetDisabled(true);
 		desync_position_z:SetDisabled(true);
@@ -525,12 +524,10 @@ local function gui_set_disabled()
 		rotation_angle:SetDisabled(true);
 		lby_angle:SetDisabled(true);
 		legitaa:SetDisabled(true);
-		disablefl:SetDisabled(true);
 		lagsync:SetDisabled(true);
 		idealtick:SetDisabled(true);
 	else
 		safe_revolver:SetDisabled(false);
-		antionshot:SetDisabled(false);
 		desync_indicator:SetDisabled(false);
 		desync_indicator_rgb:SetDisabled(false);
 		desync_position_z:SetDisabled(false);
@@ -548,7 +545,6 @@ local function gui_set_disabled()
 		rotation_angle:SetDisabled(false);
 		lby_angle:SetDisabled(false);
 		legitaa:SetDisabled(false);
-		disablefl:SetDisabled(false);
 		lagsync:SetDisabled(false);
 		idealtick:SetDisabled(false);
 	end
