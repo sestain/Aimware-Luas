@@ -633,8 +633,8 @@ local function gui_set_disabled()
 		lby_angle:SetDisabled(true);
 		legitaa:SetDisabled(true);
 		disablefl:SetDisabled(true);
-		lagsync:SetDisabled(false);
-		lagsync:SetDisabled(false);
+		lagsync:SetDisabled(true);
+		idealtick:SetDisabled(true);
 	else
 		safe_revolver:SetDisabled(false);
 		antionshot:SetDisabled(false);
@@ -657,7 +657,7 @@ local function gui_set_disabled()
 		legitaa:SetDisabled(false);
 		disablefl:SetDisabled(false);
 		lagsync:SetDisabled(false);
-		lagsync:SetDisabled(false);
+		idealtick:SetDisabled(false);
 	end
 end
 
