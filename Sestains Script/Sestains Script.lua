@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.44";
+local VERSION_NUMBER = "1.45";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -114,16 +114,13 @@ local x = w/2;
 local y = h/2;
 local current_angle = 0;
 local drawLeft = 0;
-local drawBack = 0;
 local drawRight = 0;
 local stupidlagsync = 1;
 local stupidlagsync2 = 1;
 local stupidlagsync3 = 1;
 local kek = 1;
 local gaben = 1;
-local saferevolvertick = false;
 local saved = false;
-local saved2 = false;
 local overriden = false;
 local manually_changing = false;
 local old_lby_offset = gui.GetValue("rbot.antiaim.base.lby");
@@ -139,10 +136,6 @@ local saved_values = {
     ["rbot.antiaim.condition.use"] = gui.GetValue("rbot.antiaim.condition.use")
 }
 
-local saved_values2 = {
-	["misc.fakelag.enable"] = gui.GetValue("misc.fakelag.enable")
-}
-
 --Menu Related/Gui
 local rb_ref = gui.Reference("Ragebot");
 local tab = gui.Tab(rb_ref, "sestain", "Sestain's Script");
@@ -151,60 +144,33 @@ local gb_r2 = gui.Groupbox(tab, "Indicators & Other", 280, 15, 335, 400);
 
 --Right Side
 local autodisconnect = gui.Checkbox(gb_r2, "autodisconnect", "Auto Disconnect", false);
-local safe_revolver = gui.Checkbox(gb_r2, "safe_revolver", "Safe Revolver", false);
 local idealtick = gui.Checkbox(gb_r2, "idealtick", "Ideal Tick", false)
-local desync_indicator = gui.Checkbox(gb_r2, "desync_indicator", "Desync Indicator", 1);
+local lowdelta = gui.Checkbox(gb_r2, "lowdelta", "Low Delta on DT", false);
+local desync_indicator = gui.Checkbox(gb_r2, "desync_indicator", "Desync Indicator", true);
 local desync_indicator_rgb = gui.Checkbox(desync_indicator, "rgb", "rgb", 0);
-local desync_position_z = gui.Slider(gb_r2, "desync_z", "Desync Indicator's Z Position", y, 0, h);
 local desync_bgcp = gui.ColorPicker(desync_indicator, "desync_bgclr", "Desync Indicator's Background Color", 0,0,0,128);
-local desync_icp = gui.ColorPicker(desync_indicator, "desync_iclr", "Desync Indicator's Indicator Color", 0,135,206,235);
-local manual_indicator = gui.Checkbox(gb_r2, "manual_indicator", "Manual AA Indicator", 0);
+local desync_icp = gui.ColorPicker(desync_indicator, "desync_iclr", "Desync Indicator's Color", 0,135,206,235);
+local manual_indicator = gui.Checkbox(gb_r2, "manual_indicator", "Manual AA Indicator", true);
 local manual_indicator_rgb = gui.Checkbox(manual_indicator, "rgb", "rgb", 0);
-local manual_position_z = gui.Slider(gb_r2, "manual_z", "Manual AA Indicator's Z Position", h/1.25, 0, h);
 local manual_bgcp = gui.ColorPicker(manual_indicator, "manual_bgclr", "Manual AA Indicator's Background Color", 0,0,0,128);
-local manual_icp = gui.ColorPicker(manual_indicator, "manual_iclr", "Manual AA Indicator's Indicator Color", 235,235,235,235);
+local manual_icp = gui.ColorPicker(manual_indicator, "manual_iclr", "Manual AA Indicator's Color", 235,235,235,235);
 
 --Left Side
 local enabled = gui.Checkbox(gb_r, "enabled", "Enable", true);
-local legitaa = gui.Checkbox(gb_r, "legitaa", "Legit AA on Use", false);
+local legitaa = gui.Checkbox(gb_r, "legitaa", "Legit AA on Use", true);
 local lagsync = gui.Checkbox(gb_r, "lagsync", "Lagsync", false);
-local invert_key = gui.Keybox(gb_r, "ikey", "Invert Key", 0);
+local invert_key = gui.Keybox(gb_r, "ikey", "Invert Key", 6);
 local left_key = gui.Keybox(gb_r, "left", "Manual AA to Left", 37);
-local back_key = gui.Keybox(gb_r, "back", "Manual AA to Backwards", 40);
 local right_key = gui.Keybox(gb_r,"right","Manual AA to Right", 39);
 local rotation_angle = gui.Slider(gb_r, "rotationangle", "Rotation Offset", old_rotation_offset, -58, 58);
 local lby_angle = gui.Slider(gb_r, "lbyangle", "LBY Offset", old_lby_offset, -180, 180);
 
 --Descriptions of the features
-desync_indicator:SetDescription("Shows which side your anti-aim desync is with an arrow");
-desync_position_z:SetDescription("Changes desync Indicator's height");
+desync_indicator:SetDescription("Shows which side your anti-aim desync is with a line");
 manual_indicator:SetDescription("Shows where Manual Anti-Aim is set with an arrow");
-manual_position_z:SetDescription("Changes Manual AA Indicator's height");
-autodisconnect:SetDescription("Disconnects from game when it finishes");
-safe_revolver:SetDescription("R8 shouldn't shoot ground anymore");
+autodisconnect:SetDescription("Disconnects from the game when it finishes");
 invert_key:SetDescription("Key used to invert Anti-Aim");
 idealtick:SetDescription("IdealTick from nxzAA by naz");
-
---Safe revolver does some magic
-local function SafeRevolver()
-	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true then
-		if safe_revolver:GetValue() == true then
-			if not entities.GetLocalPlayer() then return end
-			if not entities.GetLocalPlayer():IsAlive() then return end
-		
-			local WeaponID = entities.GetLocalPlayer():GetWeaponID();
-			local WeaponType = entities.GetLocalPlayer():GetWeaponType();
-			
-    		if (WeaponType == 0 and WeaponID == 36) then
-				saferevolvertick = math.floor(1 / globals.FrameTime()) < 65 and true or false;
-    		    gui.SetValue("misc.fakelag.enable", math.floor(1 / globals.FrameTime()) < 65 and false or true);
-    		else
-				saferevolvertick = false;
-    		    gui.SetValue("misc.fakelag.enable", true);
-			end
-		end
-	end
-end
 
 --Some AntiAim stuff like invert key, manual aa & lagsync
 local function Antiaim()
@@ -215,12 +181,27 @@ local function Antiaim()
 			end
 		end
 
+		if lowdelta:GetValue() == true then
+			if not kek and
+				gui.GetValue("rbot.accuracy.weapon.pistol.doublefire" ) == 2 or gui.GetValue("rbot.accuracy.weapon.hpistol.doublefire") == 2 or
+				gui.GetValue("rbot.accuracy.weapon.smg.doublefire"    ) == 2 or gui.GetValue("rbot.accuracy.weapon.rifle.doublefire"  ) == 2 or
+				gui.GetValue("rbot.accuracy.weapon.shotgun.doublefire") == 2 or gui.GetValue("rbot.accuracy.weapon.asniper.doublefire") == 2 or
+				gui.GetValue("rbot.accuracy.weapon.lmg.doublefire"    ) == 2 or gui.GetValue("rbot.accuracy.weapon.pistol.doublefire" ) == 1 or
+				gui.GetValue("rbot.accuracy.weapon.hpistol.doublefire") == 1 or gui.GetValue("rbot.accuracy.weapon.smg.doublefire"    ) == 1 or
+				gui.GetValue("rbot.accuracy.weapon.rifle.doublefire"  ) == 1 or gui.GetValue("rbot.accuracy.weapon.shotgun.doublefire") == 1 or
+				gui.GetValue("rbot.accuracy.weapon.asniper.doublefire") == 1 or gui.GetValue("rbot.accuracy.weapon.lmg.doublefire"    ) == 1 or
+				gui.GetValue("rbot.antiaim.condition.shiftonshot") == true then
+				gui.SetValue("rbot.antiaim.advanced.antialign", 1)
+			else
+				gui.SetValue("rbot.antiaim.advanced.antialign", 0)
+			end
+		end
+
 		if lagsync:GetValue() == true then
 			if gaben == 1 then
 				if left_key:GetValue() ~= 0 then
 					if input.IsButtonPressed(left_key:GetValue()) then
 						drawLeft = drawLeft == 0 and 1 or 0;
-						drawBack = 0;
 						drawRight = 0;
 						if drawLeft == 0 then
 							gui.SetValue( "rbot.antiaim.advanced.autodir.targets", 1 );
@@ -242,28 +223,9 @@ local function Antiaim()
 					end
 				end
 			
-				if back_key:GetValue() ~= 0 then
-					if input.IsButtonPressed(back_key:GetValue()) then
-						drawLeft = 0;
-						drawBack = drawBack == 0 and 1 or 0;
-						drawRight = 0;
-						if drawBack == 0 then
-							gui.SetValue( "rbot.antiaim.advanced.autodir.targets", 1 );
-						elseif drawBack == 1 then
-							gui.SetValue( "rbot.antiaim.advanced.autodir.targets", 0 );
-						end
-					end
-					if drawBack == 0 then
-						stupidlagsync2 = 1;
-					elseif drawBack == 1 then
-						stupidlagsync2 = 1;
-					end
-				end
-			
 				if right_key:GetValue() ~= 0 then
 					if input.IsButtonPressed(right_key:GetValue()) then
 						drawLeft = 0;
-						drawBack = 0;
 						drawRight = drawRight == 0 and 1 or 0;
 						if drawRight == 0 then
 							gui.SetValue( "rbot.antiaim.advanced.autodir.targets", 1 );
@@ -323,7 +285,6 @@ local function Antiaim()
 			if left_key:GetValue() ~= 0 then
 				if input.IsButtonPressed(left_key:GetValue()) then
 					drawLeft = drawLeft == 0 and 1 or 0;
-					drawBack = 0
 					drawRight = 0
 					if drawLeft == 0 then
 						gui.SetValue("rbot.antiaim.base", 180)
@@ -333,23 +294,9 @@ local function Antiaim()
 				end
 			end
 			
-			if back_key:GetValue() ~= 0 then
-				if input.IsButtonPressed(back_key:GetValue()) then
-					drawLeft = 0
-					drawBack = drawBack == 0 and 1 or 0;
-					drawRight = 0
-					if drawBack == 0 then
-						gui.SetValue("rbot.antiaim.base", 180)
-					elseif drawBack == 1 then
-						gui.SetValue("rbot.antiaim.base", 180)
-					end
-				end
-			end
-			
 			if right_key:GetValue() ~= 0 then
 				if input.IsButtonPressed(right_key:GetValue()) then
 					drawLeft = 0
-					drawBack = 0
 					drawRight = drawRight == 0 and 1 or 0;
 					if drawRight == 0 then
 						gui.SetValue("rbot.antiaim.base", 180)
@@ -388,95 +335,79 @@ local function Antiaim()
 	end
 end
 
---Indicator for Desync
-local function DesyncIndicator()
+--Indicators
+local function Indicators()
 	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true then
+		if not entities.GetLocalPlayer() then return end
+		local desync_bgr, desync_bgg, desync_bgb, desync_bga = desync_bgcp:GetValue();
+		local desync_ir, desync_ig, desync_ib, desync_ia = desync_icp:GetValue();
+		local manual_bgr, manual_bgg, manual_bgb, manual_bga = manual_bgcp:GetValue();
+		local manual_ir, manual_ig, manual_ib, manual_ia = manual_icp:GetValue();
+		
 		if desync_indicator:GetValue() == true then
-			if not entities.GetLocalPlayer() then return end
-			local desync_bgr, desync_bgg, desync_bgb, desync_bga = desync_bgcp:GetValue();
-			local desync_ir, desync_ig, desync_ib, desync_ia = desync_icp:GetValue();
 			if current_angle == 0 then 
 				draw.Color(desync_ir, desync_ig, desync_ib, desync_ia);
-				draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10);
+				draw.FilledRect( x + 40, y - 10, x + 36, y + 10 );
 				draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga);
-				draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue());
-			elseif current_angle == 1 then 
+				draw.FilledRect( x - 40, y - 10, x - 36, y + 10 );
+			elseif current_angle == 1 then
+				draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga);
+				draw.FilledRect( x + 40, y - 10, x + 36, y + 10 );
 				draw.Color(desync_ir, desync_ig, desync_ib, desync_ia);
-				draw.Triangle(x - 35, desync_position_z:GetValue() - 10, x - 35, desync_position_z:GetValue() + 10, x - 55, desync_position_z:GetValue());
-				draw.Color(desync_bgr, desync_bgg, desync_bgb, desync_bga);
-				draw.Triangle(x + 55, desync_position_z:GetValue(), x + 35, desync_position_z:GetValue() + 10, x + 35, desync_position_z:GetValue() - 10);
+				draw.FilledRect( x - 40, y - 10, x - 36, y + 10 );
 			end
 		end
-	end
-end
 
---Indicator for Manual AA
-local function ManualIndicator()
-	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true then
 		if manual_indicator:GetValue() == true then
-			if not entities.GetLocalPlayer() then return end
-			local manual_bgr, manual_bgg, manual_bgb, manual_bga = manual_bgcp:GetValue();
-			local manual_ir, manual_ig, manual_ib, manual_ia = manual_icp:GetValue();
-			
 			if drawLeft == 0 then
 				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga);
-				draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10);
+				draw.Triangle(x - 50, y + 10, x - 70, y, x - 50, y - 10);
 			elseif drawLeft == 1 then
 				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia);
-				draw.Triangle(x - 50, manual_position_z:GetValue() + 10, x - 70, manual_position_z:GetValue(), x - 50, manual_position_z:GetValue() - 10);
-			end
-			
-			if drawBack == 0 then
-				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga);
-				draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70);
-			elseif drawBack == 1 then
-				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia);
-				draw.Triangle(x - 10, manual_position_z:GetValue() + 50, x + 10, manual_position_z:GetValue() + 50, x, manual_position_z:GetValue() + 70);
+				draw.Triangle(x - 50, y + 10, x - 70, y, x - 50, y - 10);
 			end
 			
 			if drawRight == 0 then
 				draw.Color(manual_bgr, manual_bgg, manual_bgb, manual_bga);
-				draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10);
+				draw.Triangle(x + 50, y - 10, x + 70, y, x + 50, y + 10);
 			elseif drawRight == 1 then
 				draw.Color(manual_ir, manual_ig, manual_ib, manual_ia);
-				draw.Triangle(x + 50, manual_position_z:GetValue() - 10, x + 70, manual_position_z:GetValue(), x + 50, manual_position_z:GetValue() + 10);
+				draw.Triangle(x + 50, y - 10, x + 70, y, x + 50, y + 10);
 			end
 		end
 	end
 end
 
---LegitAA on E
+--LegitAA on Use
 local function LegitAA(cmd)
-	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true then
-		if legitaa:GetValue() == true then
-			if not legitaa:GetValue() or bit.band(cmd.buttons, bit.lshift(1, 5)) == 0 then
-				if saved then
-					for i, v in next, saved_values do
-						gui.SetValue(i, v);
-					end
-					saved = false;
-					kek = 1;
-					gaben = 1;
-				end
-			return end
-			
-			if not cmd.sendpacket then return end
-			
-			if not saved then
+	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true and legitaa:GetValue() == true then
+		if not legitaa:GetValue() or bit.band(cmd.buttons, bit.lshift(1, 5)) == 0 then
+			if saved then
 				for i, v in next, saved_values do
-					saved_values[i] = gui.GetValue(i);
+					gui.SetValue(i, v);
 				end
-				saved = true;
+				saved = false;
+				kek = 1;
+				gaben = 1;
 			end
-			
-			kek = 0;
-			gaben = 0;
-    		gui.SetValue("rbot.antiaim.condition.use", 0);
-    		gui.SetValue("rbot.antiaim.advanced.pitch", 0);
-    		gui.SetValue("rbot.antiaim.advanced.autodir.edges", 0);
-    		gui.SetValue("rbot.antiaim.advanced.autodir.targets", 0);
-    		gui.SetValue("rbot.antiaim.base", [[0 "Desync"]]);
+		return end
+		
+		if not cmd.sendpacket then return end
+		
+		if not saved then
+			for i, v in next, saved_values do
+				saved_values[i] = gui.GetValue(i);
+			end
+			saved = true;
 		end
+		
+		kek = 0;
+		gaben = 0;
+    	gui.SetValue("rbot.antiaim.condition.use", 0);
+    	gui.SetValue("rbot.antiaim.advanced.pitch", 0);
+    	gui.SetValue("rbot.antiaim.advanced.autodir.edges", 0);
+    	gui.SetValue("rbot.antiaim.advanced.autodir.targets", 0);
+    	gui.SetValue("rbot.antiaim.base", [[0 "Desync"]]);
 	end
 end
 
@@ -491,59 +422,29 @@ local function gui_set_invisible()
     manual_bgcp:SetInvisible(not manual_indicator);
 	manual_icp:SetInvisible(not manual_indicator);
 
-	desync_position_z:SetInvisible(desync_indicator == false);
-	manual_position_z:SetInvisible(manual_indicator == false);
-
 	desync_indicator_rgb:SetInvisible(true);
 	manual_indicator_rgb:SetInvisible(true);
 end
 
 local function gui_set_disabled()
-	if gui.GetValue("rbot.sestain.enabled") == false then
-		safe_revolver:SetDisabled(true);
-		desync_indicator:SetDisabled(true);
-		desync_indicator_rgb:SetDisabled(true);
-		desync_position_z:SetDisabled(true);
-		desync_bgcp:SetDisabled(true);
-		desync_icp:SetDisabled(true);
-		manual_indicator:SetDisabled(true);
-		manual_indicator_rgb:SetDisabled(true);
-		manual_position_z:SetDisabled(true);
-		manual_bgcp:SetDisabled(true);
-		manual_icp:SetDisabled(true);
-		invert_key:SetDisabled(true);
-		left_key:SetDisabled(true);
-		back_key:SetDisabled(true);
-		right_key:SetDisabled(true);
-		rotation_angle:SetDisabled(true);
-		lby_angle:SetDisabled(true);
-		legitaa:SetDisabled(true);
-		lagsync:SetDisabled(true);
-		idealtick:SetDisabled(true);
-		autodisconnect:SetDisabled(true);
-	else
-		safe_revolver:SetDisabled(false);
-		desync_indicator:SetDisabled(false);
-		desync_indicator_rgb:SetDisabled(false);
-		desync_position_z:SetDisabled(false);
-		desync_bgcp:SetDisabled(false);
-		desync_icp:SetDisabled(false);
-		manual_indicator:SetDisabled(false);
-		manual_indicator_rgb:SetDisabled(false);
-		manual_position_z:SetDisabled(false);
-		manual_bgcp:SetDisabled(false);
-		manual_icp:SetDisabled(false);
-		invert_key:SetDisabled(false);
-		left_key:SetDisabled(false);
-		back_key:SetDisabled(false);
-		right_key:SetDisabled(false);
-		rotation_angle:SetDisabled(false);
-		lby_angle:SetDisabled(false);
-		legitaa:SetDisabled(false);
-		lagsync:SetDisabled(false);
-		idealtick:SetDisabled(false);
-		autodisconnect:SetDisabled(false);
-	end
+	local tradition = enabled:GetValue() == false;
+	desync_indicator:SetDisabled(tradition);
+	desync_indicator_rgb:SetDisabled(tradition);
+	desync_bgcp:SetDisabled(tradition);
+	desync_icp:SetDisabled(tradition);
+	manual_indicator:SetDisabled(tradition);
+	manual_indicator_rgb:SetDisabled(tradition);
+	manual_bgcp:SetDisabled(tradition);
+	manual_icp:SetDisabled(tradition);
+	invert_key:SetDisabled(tradition);
+	left_key:SetDisabled(tradition);
+	right_key:SetDisabled(tradition);
+	rotation_angle:SetDisabled(tradition);
+	lby_angle:SetDisabled(tradition);
+	legitaa:SetDisabled(tradition);
+	lagsync:SetDisabled(tradition);
+	idealtick:SetDisabled(tradition);
+	autodisconnect:SetDisabled(tradition);
 end
 
 local function GuiStuff()
@@ -603,11 +504,9 @@ local function idealTick()
 end
 
 local function AutoDisconnect(event)
-	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true then
-		if autodisconnect:GetValue() == true then
-			if event:GetName() and event:GetName() == "cs_win_panel_match" then
-    		    client.Command("disconnect", true);
-    		end
+	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true and autodisconnect:GetValue() == true then
+		if event:GetName() and event:GetName() == "cs_win_panel_match" then
+    	    client.Command("disconnect", true);
 		end
 	end
 end
@@ -625,8 +524,6 @@ callbacks.Register( "FireGameEvent", AutoDisconnect);
 callbacks.Register( "Draw", EngineRadar);
 callbacks.Register( "Draw", idealTick);
 callbacks.Register( "Draw", Antiaim);
-callbacks.Register( "Draw", DesyncIndicator);
-callbacks.Register( "Draw", ManualIndicator);
+callbacks.Register( "Draw", Indicators);
 callbacks.Register( "Draw", GuiStuff);
-callbacks.Register( "CreateMove", SafeRevolver);
 callbacks.Register( "CreateMove", LegitAA);
