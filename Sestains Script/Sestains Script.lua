@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.461";
+local VERSION_NUMBER = "1.462";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -127,7 +127,8 @@ local stupidlagsync2 = 1;
 local stupidlagsync3 = 1;
 local kek = 1;
 local gaben = 1;
-local old_time = 0
+local clantagset = 0;
+local old_time = 0;
 local saved = false;
 local overriden = false;
 local manually_changing = false;
@@ -676,8 +677,12 @@ local function Clantag()
     	    set_clantag(animation[curtime % #animation+1], animation[curtime % #animation+1]);
     	end
     	old_time = curtime;
+		clantagset = 1;
 	else
-		set_clantag("", "");
+		if clantagset == 1 then
+            clantagset = 0;
+            set_clantag("", "");
+        end
 	end
 end
 
