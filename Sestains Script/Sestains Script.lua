@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.46";
+local VERSION_NUMBER = "1.461";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -400,7 +400,7 @@ local function Antiaim()
 						gui.SetValue("rbot.antiaim.base", wellumm);
 					end
 
-					if attarget == true then 
+					if attarget:GetValue() == true then 
 						gui.SetValue( "rbot.antiaim.advanced.autodir.targets", 1 );
 					end
 				end
@@ -670,7 +670,7 @@ local function OnUnload()
 end
 
 local function Clantag()
-	if clantag == true then
+	if clantag:GetValue() == true then
 		local curtime = math.floor(globals.CurTime() * 2.3);
     	if old_time ~= curtime then
     	    set_clantag(animation[curtime % #animation+1], animation[curtime % #animation+1]);
