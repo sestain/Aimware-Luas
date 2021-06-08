@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.462";
+local VERSION_NUMBER = "1.463";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -114,7 +114,6 @@ ffi.cdef[[
 ]]
 local fn_change_clantag = mem.FindPattern("engine.dll", "53 56 57 8B DA 8B F9 FF 15")
 local set_clantag = ffi.cast("clantag_t", fn_change_clantag)
-
 local w, h = draw.GetScreenSize();
 local x = w/2;
 local y = h/2;
@@ -540,6 +539,12 @@ local function gui_set_disabled()
 	lagsync:SetDisabled(tradition);
 	idealtick:SetDisabled(tradition);
 	autodisconnect:SetDisabled(tradition);
+	back_key:SetDisabled(tradition);
+	yaw_angle:SetDisabled(tradition);
+	jitter_amount:SetDisabled(tradition);
+	lowdelta:SetDisabled(tradition);
+	attarget:SetDisabled(tradition);
+	clantag:SetDisabled(tradition);
 end
 
 local function GuiStuff()
@@ -671,7 +676,7 @@ local function OnUnload()
 end
 
 local function Clantag()
-	if clantag:GetValue() == true then
+	if gui.GetValue("rbot.master") == true and enabled:GetValue() == true and clantag:GetValue() == true then
 		local curtime = math.floor(globals.CurTime() * 2.3);
     	if old_time ~= curtime then
     	    set_clantag(animation[curtime % #animation+1], animation[curtime % #animation+1]);
