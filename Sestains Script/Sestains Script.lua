@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.463";
+local VERSION_NUMBER = "1.47";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -108,12 +108,33 @@ callbacks.Register( "Draw", "handleUpdates", function()
 	end
 end)
 
---Variables, Values and a function for fps
+--Variables, Values and functions
 ffi.cdef[[
     typedef int(__fastcall* clantag_t)(const char*, const char*);
+	void* GetProcAddress(void* hModule, const char* lpProcName);
+    void* GetModuleHandleA(const char* lpModuleName);
+    
+    typedef struct {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t a;
+    } color_struct_t;
+
+    typedef void (*console_color_print)(const color_struct_t&, const char*, ...);
+    typedef void* (__thiscall* get_client_entity_t)(void*, int);
 ]]
+
+local c_hud_chat =
+    ffi.cast("unsigned long(__thiscall*)(void*, const char*)", mem.FindPattern("client.dll", "55 8B EC 53 8B 5D 08 56 57 8B F9 33 F6 39 77 28"))(
+    ffi.cast("unsigned long**", ffi.cast("uintptr_t", mem.FindPattern("client.dll", "B9 ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B 5D 08")) + 1)[0],
+    "CHudChat"
+)
+
 local fn_change_clantag = mem.FindPattern("engine.dll", "53 56 57 8B DA 8B F9 FF 15")
 local set_clantag = ffi.cast("clantag_t", fn_change_clantag)
+local ffi_log = ffi.cast("console_color_print", ffi.C.GetProcAddress(ffi.C.GetModuleHandleA("tier0.dll"), "?ConColorMsg@@YAXABVColor@@PBDZZ"))
+local ffi_print_chat = ffi.cast("void(__cdecl*)(int, int, int, const char*, ...)", ffi.cast("void***", c_hud_chat)[0][27])
 local w, h = draw.GetScreenSize();
 local x = w/2;
 local y = h/2;
@@ -133,6 +154,7 @@ local overriden = false;
 local manually_changing = false;
 local old_lby_offset = gui.GetValue("rbot.antiaim.base.lby");
 local old_rotation_offset = gui.GetValue("rbot.antiaim.base.rotation");
+local sv_maxusrcmdprocessticks = gui.Reference("Misc", "General", "Server", "sv_maxusrcmdprocessticks")
 local tbl = {};
 cache = {};
 
@@ -174,6 +196,19 @@ local animation = {
     "k                 "
 }
 
+function client.color_log(r, g, b, msg, ...)
+    for k, v in pairs({...}) do
+        msg = tostring(msg .. v)
+    end
+    local clr = ffi.new("color_struct_t")
+    clr.r, clr.g, clr.b, clr.a = r, g, b, 255
+    ffi_log(clr, msg)
+end
+
+function client.PrintChat(msg)
+    ffi_print_chat(c_hud_chat, 0, 0, " " .. msg)
+end
+
 --Menu Related/Gui
 local rb_ref = gui.Reference("Ragebot");
 local tab = gui.Tab(rb_ref, "sestain", ("Sestain's Script " .. VERSION_NUMBER));
@@ -181,6 +216,7 @@ local gb_r = gui.Groupbox(tab, "Anti-Aim", 15, 15, 250, 400);
 local gb_r2 = gui.Groupbox(tab, "Other", 280, 15, 335, 400);
 
 --Right Side
+local logOptions = gui.Multibox( gb_r2, "Logs")
 local autodisconnect = gui.Checkbox(gb_r2, "autodisconnect", "Auto Disconnect", false);
 local lowdelta = gui.Checkbox(gb_r2, "lowdelta", "Low Delta on DT & Shift on Shot", true);
 local legitaa = gui.Checkbox(gb_r2, "legitaa", "Legit AA on Use", true);
@@ -197,6 +233,13 @@ local manual_indicator_rgb = gui.Checkbox(manual_indicator, "rgb", "rgb", 0);
 local manual_bgcp = gui.ColorPicker(manual_indicator, "manual_bgclr", "Manual AA Indicator's Background Color", 0,0,0,128);
 local manual_icp = gui.ColorPicker(manual_indicator, "manual_iclr", "Manual AA Indicator's Color", 235,235,235,235);
 
+local logHits = gui.Checkbox( logOptions, "hit.enable", "Hits", true)
+local logMiss = gui.Checkbox( logOptions, "miss.enable", "Misses", true)
+local logHurt = gui.Checkbox( logOptions, "hurt.enable", "Hurt", true)
+local logOther = gui.Checkbox( logOptions, "other.enable", "Other", true)
+local printchat = gui.Checkbox( logOptions, "logs.chat", "Chat", true)
+local printconsole = gui.Checkbox( logOptions, "logs.console", "Console", true)
+
 --Left Side
 local enabled = gui.Checkbox(gb_r, "enabled", "Enable", true);
 local invert_key = gui.Keybox(gb_r, "ikey", "Invert Key", 6);
@@ -211,7 +254,6 @@ local lby_angle = gui.Slider(gb_r, "lbyangle", "LBY Offset", old_lby_offset, -18
 --Descriptions of the features
 desync_indicator:SetDescription("Shows which side your anti-aim desync is with a line.");
 manual_indicator:SetDescription("Shows where Manual Anti-Aim is set with an arrow.");
-autodisconnect:SetDescription("Disconnects from the game when it finishes.");
 idealtick:SetDescription("IdealTick from nxzAA by naz.");
 lowdelta:SetDescription("Sets AA Type to Micro from Lower when DT or Shift on Shots is on.");
 
@@ -690,6 +732,360 @@ local function Clantag()
         end
 	end
 end
+
+local shot_print_chat = (function()
+    --[[
+        YOU CAN CUSTOMIZE MESSAGES MORE HERE
+    ]]
+    local function formatHitMessage(name, damage, hitbox, remaining)
+        local msg = string.format("\04%s damage to %s %s (%s hp left) ", damage, name, hitbox, remaining)
+        return msg
+    end
+
+    local function formatHitMessage2(name, damage, hitbox, remaining)
+        local msg = string.format("\09%s damage to %s %s (%s hp left) ", damage, name, hitbox, remaining)
+        return msg
+    end
+
+    local function formatLocalHit(name, damage, hitbox, remaining, victim)
+        local msg = string.format("\11%s did %s damage to %s %s (%s hp left) ", name, damage, victim, hitbox, remaining)
+        return msg
+    end
+
+    --[[
+        Important script vars 
+    ]]
+    local local_player = entities.GetLocalPlayer()
+
+    local Hit_Groups = {"GENERIC", "HEAD", "CHEST", "STOMACH", "LEFT ARM", "RIGHT ARM", "LEFT LEG", "RIGHT LEG", "NECK"}
+
+    local Cache = {
+        current_target = nil,
+        mouse_pressed = false,
+        weapon_name = "",
+        bullet_impact = {},
+        player_hurt = {},
+        view_angles = {
+            [1] = nil,
+            [2] = nil
+        }
+    }
+
+    local Event_Table = {}
+    --[[ 
+        Helpers
+    ]]
+    local function ClearCache()
+        Cache.weapon_name = ""
+        Cache.bullet_impact = {}
+        Cache.player_hurt = {}
+        Cache.mouse_pressed = false
+    end
+
+    local function IsGrenade(weapon_name)
+        for i, str in ipairs({"grenade", "flash", "decoy", "molotov", "mine", "charge"}) do
+            if string.find(weapon_name, str) then return true end
+        end
+
+        return false
+    end
+
+    local function CalculateSpread(view_angles, src, dst)
+        local dst_wish = src + view_angles:Forward() * 1000
+
+        local AB = src - dst
+        local AC = src - dst_wish
+
+        local deg = math.deg(math.acos(AB:Dot(AC) / (AB:Length() * AC:Length())))
+
+        return deg
+    end
+
+    local function DisplayShot(shot)
+        local msg = "nil"
+        local hit_target = false
+
+        -- log each hit in path and mark unintended ones as yellow
+        if logOther:GetValue() or logHits:GetValue() then
+            for i, hurt in ipairs(shot.hurts) do 
+                if not entities.GetLocalPlayer():IsAlive() then return end
+                local hurt_name = entities.GetByIndex( hurt.index ):GetName()
+                local hurt_where = Hit_Groups[hurt.hitgroup]
+
+                -- keep track if we hit target so we can log a miss is we hit someone else but not target
+                hit_target = shot.target:GetIndex() == hurt.index or hit_target
+
+                if shot.target:GetIndex() == hurt.index then
+                    msg = formatHitMessage(hurt_name, hurt.damage, hurt_where, hurt.health)
+                    if printchat:GetValue() == true then
+                        client.PrintChat("\01[\02AIMWARE\01] " .. msg .. "\n")
+                    end
+                    if printconsole:GetValue() == true then
+                        client.color_log(252,252,252, "[")
+                        client.color_log(255,0,0, "AIMWARE")
+                        client.color_log(252,252,252, "] ")
+                        client.color_log(64,255,64, msg .. "\n")
+                    end
+                else
+                    msg = formatHitMessage2(hurt_name, hurt.damage, hurt_where, hurt.health)
+                    if printchat:GetValue() == true then
+                        client.PrintChat("\01[\02AIMWARE\01] " .. msg .. "\n")
+                    end
+                    if printconsole:GetValue() == true then
+                        client.color_log(252,252,252, "[")
+                        client.color_log(255,0,0, "AIMWARE")
+                        client.color_log(252,252,252, "] ")
+                        client.color_log(237,228,122, msg .. "\n")
+                    end
+                end
+            end
+        end
+
+        -- if we didnt hit target
+        -- or it was a manual shot
+        if logMiss:GetValue() and (shot.type == "aimbot" and shot.target and not hit_target) then 
+            if shot.spread < "0.8" then
+                if printchat:GetValue() == true then
+                    client.PrintChat("\01[\02AIMWARE\01] \07Missed shot due to ? (" .. shot.spread .. ")\n")
+                end
+                if printconsole:GetValue() == true then
+                    client.color_log(252,252,252, "[")
+                    client.color_log(255,64,64, "AIMWARE")
+                    client.color_log(252,252,252, "] ")
+                    client.color_log(255,64,64, "Missed shot due to ? (" .. shot.spread .. ")\n")
+                end
+            end
+        
+            if shot.spread > "0.8" then
+                if printchat:GetValue() == true then
+                    client.PrintChat("\01[\02AIMWARE\01] \07Missed shot due to spread (" .. shot.spread .. ")\n")
+                end
+                if printconsole:GetValue() == true then
+                    client.color_log(252,252,252, "[")
+                    client.color_log(255,0,0, "AIMWARE")
+                    client.color_log(252,252,252, "] ")
+                    client.color_log(255,64,64, "Missed shot due to spread (" .. shot.spread .. ")\n")
+                end
+            end
+        end
+    end
+    --[[
+        Events
+    ]]
+    Event_Table['weapon_fire'] = function(weapon_fire)
+        local player_index = entities.GetByUserID(weapon_fire:GetInt("userid")):GetIndex()
+
+        if player_index ~= local_player:GetIndex() then return end
+
+        local weapon = string.gsub(weapon_fire:GetString("weapon"), "weapon_", "")
+        local eye_pos = local_player:GetAbsOrigin() + local_player:GetPropVector("localdata", "m_vecViewOffset[0]")
+
+        table.insert(Cache.bullet_impact, eye_pos)
+
+        Cache.weapon_name = weapon
+    end
+
+    Event_Table["bullet_impact"] = function(bullet_impact)
+        local player_index = entities.GetByUserID(bullet_impact:GetInt("userid")):GetIndex()
+
+        if player_index ~= local_player:GetIndex() then return end
+
+        local x = bullet_impact:GetFloat("x")
+        local y = bullet_impact:GetFloat("y")
+        local z = bullet_impact:GetFloat("z")
+
+        local position = Vector3(x,y,z)
+
+        table.insert(Cache.bullet_impact, position)
+    end
+
+    Event_Table["player_hurt"] = function(player_hurt)
+        local attacker_index = entities.GetByUserID(player_hurt:GetInt("attacker")):GetIndex()
+
+        -- we are not attacker
+        if attacker_index ~= local_player:GetIndex() then
+            local attacker = entities.GetByUserID(player_hurt:GetInt("attacker"))
+            local victim = entities.GetByUserID(player_hurt:GetInt("userid"))
+    	    local victim_index = victim:GetIndex()
+            local _damage = player_hurt:GetInt("dmg_health")
+            local _health = player_hurt:GetInt("health")
+            local _hitgroup = player_hurt:GetInt("hitgroup") + 1
+            
+            table.insert(Cache.player_hurt, {damage = _damage, health = _health, hitgroup = _hitgroup, index = victim_index})
+
+            if victim_index == local_player:GetIndex() and logHurt:GetValue() then
+                local msg = formatLocalHit(attacker:GetName(), _damage, Hit_Groups[_hitgroup], _health, victim:GetName())
+
+                if printchat:GetValue() == true then
+                    client.PrintChat("\01[\02AIMWARE\01] " .. msg .. "\n")
+                end
+                if printconsole:GetValue() == true then
+                    client.color_log(252,252,252, "[")
+                    client.color_log(255,0,0, "AIMWARE")
+                    client.color_log(252,252,252, "] ")
+                    client.color_log(94,152,217, msg .. "\n")
+                end
+            end
+            ClearCache()
+        return end
+
+        local victim = entities.GetByUserID(player_hurt:GetInt("userid"))
+    	local victim_index = victim:GetIndex()
+
+        local _damage = player_hurt:GetInt("dmg_health")
+        local _health = player_hurt:GetInt("health")
+        local _hitgroup = player_hurt:GetInt("hitgroup") + 1
+
+        -- anything but grenade and knife
+        if _hitgroup ~= 1  or Cache.weapon_name == "taser" then
+            table.insert(Cache.player_hurt, {damage = _damage, health = _health, hitgroup = _hitgroup, index = victim_index})
+            return
+        end
+
+        -- nades and knife fix
+        local msg = formatHitMessage(victim:GetName(), _damage, Hit_Groups[1], _health) 
+
+        if printchat:GetValue() == true then
+            client.PrintChat("\01[\02AIMWARE\01] " .. msg .. "\n")
+        end
+        if printconsole:GetValue() == true then
+            client.color_log(252,252,252, "[")
+            client.color_log(255,0,0, "AIMWARE")
+            client.color_log(252,252,252, "] ")
+            client.color_log(0,255,0, msg .. "\n")
+        end
+    end
+
+    Event_Table["round_prestart"] = function(player_death)
+        ClearCache()
+    end
+
+    local function handleEvents(event)
+        local_player = entities.GetLocalPlayer()
+        if event then
+            local event_name = event:GetName()
+            if Event_Table[event_name] then
+                Event_Table[event_name](event);
+            end
+        end
+    end
+
+    --[[
+        CreateMove
+    ]]
+    local function CompileShot(predicted_shot)
+        if string.find(Cache.weapon_name, "knife") then return end
+        if IsGrenade(Cache.weapon_name) then return end
+
+        local shot_type = Cache.mouse_pressed and "manual" or "aimbot"
+        local spread_amt = CalculateSpread(predicted_shot.ang, predicted_shot.pos, Cache.bullet_impact[#Cache.bullet_impact])
+
+        if not predicted_shot.target and #Cache.player_hurt > 0 then
+            predicted_shot.target = entities.GetByIndex( Cache.player_hurt[1].index )
+        end
+
+        local shot = {
+            type = shot_type,
+            target = predicted_shot.target,
+            weapon = Cache.weapon_name,
+            ang = predicted_shot.ang,
+            pos = predicted_shot.pos,
+            impacts = Cache.bullet_impact,
+            hurts = Cache.player_hurt,
+            tick = globals.TickCount(),
+            spread = string.format("%.3f", spread_amt)
+        }
+
+        return shot
+    end
+
+    local function HandleViewAngles(cmd)
+        Cache.mouse_pressed = input.IsButtonDown( 1 )
+
+        local ping_in_seconds = entities.GetPlayerResources():GetPropInt("m_iPing", local_player:GetIndex()) / 1000
+        local ping_in_ticks = math.ceil(ping_in_seconds / globals.TickInterval())
+        local longest_lifetime = sv_maxusrcmdprocessticks:GetValue() + (ping_in_ticks * 2)
+
+        -- remove old angles
+        local i = 1 
+        while i <= 2 do
+            if Cache.view_angles[i] and globals.TickCount() - Cache.view_angles[i].tick >= longest_lifetime then
+                Cache.view_angles[i] = nil
+            end
+
+            i = i + 1
+        end
+
+        -- In attack check for getting shot angles
+        if bit.band(cmd.buttons, bit.lshift(1,0)) == nil then return end
+        if bit.band(cmd.buttons, bit.lshift(1,0)) == bit.lshift(1,0) then
+            local shot_pos = local_player:GetAbsOrigin() + local_player:GetPropVector("localdata", "m_vecViewOffset[0]")
+            local recoil = local_player:GetPropVector("localdata", "m_Local", "m_aimPunchAngle") * 2
+            local shot_angle =  cmd.viewangles
+
+            -- account for recoil
+            shot_angle.x = shot_angle.x + recoil.x
+            shot_angle.y = shot_angle.y + recoil.y
+
+            -- my best attempt at filtering the correct shot angles and positions
+            -- actually works very well
+            -- gets first and very last IN_ATTACK tick
+            if Cache.view_angles[1] == nil then
+                Cache.view_angles[1] = {ang = shot_angle, pos = shot_pos, tick = globals.TickCount(), target = Cache.current_target}
+            else
+                Cache.view_angles[2] = {ang = shot_angle, pos = shot_pos, tick = globals.TickCount(), target = Cache.current_target}
+            end
+        end
+    end
+    --[[
+        Shot stuff
+    ]]
+    callbacks.Register("Draw", function()
+        -- match angles to shots
+        if Cache.weapon_name ~= "" then
+            -- basic logic for deciding which angle to choose
+            local shot_data = Cache.view_angles[1]
+            Cache.view_angles[1] = nil
+
+            if shot_data == nil then
+                shot_data = Cache.view_angles[2]
+                Cache.view_angles[2] = nil
+            end
+
+            -- the actual function of the script
+            if shot_data then
+                local shot = CompileShot(shot_data)
+
+                if shot then
+                    DisplayShot(shot)
+                end
+                -- clear cache shit
+                ClearCache()
+            end
+        end
+    end)
+
+    --[[
+        Target Stuff (BUGGY AS FUCK)
+    ]]
+    local function UpdateTarget(entity)
+        if entity:GetName() then
+            Cache.current_target = entity
+        else
+            Cache.current_target = nil
+        end
+    end
+    --[[
+        Boring Shit
+    ]]
+    callbacks.Register( "CreateMove", HandleViewAngles)
+    callbacks.Register( "AimbotTarget", UpdateTarget)
+    callbacks.Register( "FireGameEvent", handleEvents)
+
+    for k, v in pairs(Event_Table) do
+        client.AllowListener(k)
+    end
+end)()
 
 client.AllowListener("cs_win_panel_match");
 callbacks.Register( "CreateMove", LegitAA);
