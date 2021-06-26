@@ -30,7 +30,7 @@
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/Sestains%20Script.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/Sestain/Aimware-Luas/master/Sestains%20Script/version.txt";
-local VERSION_NUMBER = "1.5";
+local VERSION_NUMBER = "1.51";
 local version_check_done = false;
 local update_downloaded = false;
 local update_available = false;
@@ -305,11 +305,10 @@ local function Unmute()
             --if (not IsPlayerGameVoiceMuted(GameClientExports, idx) and not entities.GetLocalPlayer()) then
             --    MutePlayerGameVoice(GameClientExports, idx)
             --end
-            
-            if (IsPlayerGameVoiceMuted(GameClientExports, idx)) then
-                UnmutePlayerGameVoice(GameClientExports, idx)
-            end
         end
+		if (IsPlayerGameVoiceMuted(GameClientExports, idx)) then
+			UnmutePlayerGameVoice(GameClientExports, idx)
+		end
     end
 end
 
